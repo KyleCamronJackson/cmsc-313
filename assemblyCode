@@ -1,0 +1,416 @@
+  .intel_syntax noprefix   
+
+
+
+  .section .data
+
+
+
+fmt_row:    .asciz "  [%d %d %d]\n"
+
+fmt_row_mid:  .asciz "%c = |%d %d %d|\n"
+
+fmt_row_bot:  .asciz "  [%d %d %d]\n\n"
+
+
+
+fmt_result_top: .asciz "    [%d %d %d]\n"
+
+fmt_result_mid: .asciz "A*B+A = |%d %d %d|\n"
+
+fmt_result_bot: .asciz "    [%d %d %d]\n"
+
+
+
+# ----- Matrices A and B -----
+
+A:
+
+  .long 1,2,3
+
+  .long 4,5,6
+
+  .long 7,8,9
+
+
+
+B:
+
+  .long 1,2,0
+
+  .long 3,4,5
+
+  .long 0,6,7
+
+
+
+  .section .bss
+
+  .lcomm AB, 36    # 3x3 * 4 bytes = 36
+
+  .lcomm RESULT, 36
+
+
+
+  .section .text
+
+  .globl main
+
+  .extern printf
+
+
+
+# ---------------------------------------------------------
+
+# void matmult(int* result, int* A, int* B)
+
+#  result in 8(%ebp)
+
+#  A   in 12(%ebp)
+
+#  B   in 16(%ebp)
+
+# ---------------------------------------------------------
+
+matmult:
+
+  push ebp
+
+  mov ebp, esp
+
+
+
+  xor ecx, ecx       # i = 0
+
+i_loop:
+
+  cmp ecx, 3
+
+  jge matmult_done
+
+
+
+  xor edx, edx       # j = 0
+
+j_loop:
+
+  cmp edx, 3
+
+  jge next_i
+
+
+
+  # result[i][j] = 0
+
+  mov eax, [ebp+8]     # result
+
+  mov DWORD PTR [eax + ecx*12 + edx*4], 0
+
+
+
+  xor ebx, ebx       # k = 0
+
+k_loop:
+
+  cmp ebx, 3
+
+  jge next_j
+
+
+
+  # load A[i][k]
+
+  mov esi, [ebp+12]
+
+  mov eax, [esi + ecx*12 + ebx*4]
+
+
+
+  # multiply by B[k][j]
+
+  mov edi, [ebp+16]
+
+  imul eax, [edi + ebx*12 + edx*4]
+
+
+
+  # add to result[i][j]
+
+  mov esi, [ebp+8]
+
+  add [esi + ecx*12 + edx*4], eax
+
+
+
+  inc ebx
+
+  jmp k_loop
+
+
+
+next_j:
+
+  inc edx
+
+  jmp j_loop
+
+
+
+next_i:
+
+  inc ecx
+
+  jmp i_loop
+
+
+
+matmult_done:
+
+  pop ebp
+
+  ret
+
+
+
+
+
+# ---------------------------------------------------------
+
+# void matadd(int* result, int* A, int* B)
+
+# ---------------------------------------------------------
+
+matadd:
+
+  push ebp
+
+  mov ebp, esp
+
+
+
+  xor ecx, ecx  # index = 0
+
+add_loop:
+
+  cmp ecx, 9
+
+  jge matadd_done
+
+
+
+  mov esi, [ebp+12]
+
+  mov eax, [esi + ecx*4]
+
+
+
+  add eax, [ebp+16 + ecx*4]
+
+
+
+  mov edi, [ebp+8]
+
+  mov [edi + ecx*4], eax
+
+
+
+  inc ecx
+
+  jmp add_loop
+
+
+
+matadd_done:
+
+  pop ebp
+
+  ret
+
+
+
+
+
+# ---------------------------------------------------------
+
+# main()
+
+# ---------------------------------------------------------
+
+main:
+
+  push ebp
+
+  mov ebp, esp
+
+
+
+  # AB = A * B
+
+  push B
+
+  push A
+
+  push AB
+
+  call matmult
+
+  add esp, 12
+
+
+
+  # RESULT = AB + A
+
+  push A
+
+  push AB
+
+  push RESULT
+
+  call matadd
+
+  add esp, 12
+
+
+
+# -------------- PRINT A -----------------
+
+  push [A+8]   # row 0
+
+  push [A+4]
+
+  push [A]
+
+  push fmt_row
+
+  call printf
+
+  add esp, 16
+
+
+
+  push [A+20]   # row 1
+
+  push [A+16]
+
+  push [A+12]
+
+  push 'A'
+
+  push fmt_row_mid
+
+  call printf
+
+  add esp, 20
+
+
+
+  push [A+32]   # row 2
+
+  push [A+28]
+
+  push [A+24]
+
+  push fmt_row_bot
+
+  call printf
+
+  add esp, 16
+
+
+
+# -------------- PRINT B -----------------
+
+  push [B+8]
+
+  push [B+4]
+
+  push [B]
+
+  push fmt_row
+
+  call printf
+
+  add esp, 16
+
+
+
+  push [B+20]
+
+  push [B+16]
+
+  push [B+12]
+
+  push 'B'
+
+  push fmt_row_mid
+
+  call printf
+
+  add esp, 20
+
+
+
+  push [B+32]
+
+  push [B+28]
+
+  push [B+24]
+
+  push fmt_row_bot
+
+  call printf
+
+  add esp, 16
+
+
+
+# -------------- PRINT RESULT = A*B + A -----------------
+
+  push [RESULT+8]
+
+  push [RESULT+4]
+
+  push [RESULT]
+
+  push fmt_result_top
+
+  call printf
+
+  add esp, 16
+
+
+
+  push [RESULT+20]
+
+  push [RESULT+16]
+
+  push [RESULT+12]
+
+  push fmt_result_mid
+
+  call printf
+
+  add esp, 16
+
+
+
+  push [RESULT+32]
+
+  push [RESULT+28]
+
+  push [RESULT+24]
+
+  push fmt_result_bot
+
+  call printf
+
+  add esp, 16
+
+
+
+  mov eax, 1   # sys_exit
+
+  xor ebx, ebx
+
+  int 0x80
+
